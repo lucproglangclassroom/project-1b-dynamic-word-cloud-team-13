@@ -7,8 +7,6 @@ object Main {
     val cloudSize = args.headOption.map(_.toInt).getOrElse(10)
     val minLength = args.lift(1).map(_.toInt).getOrElse(1)
     val windowSize = args.lift(2).map(_.toInt).getOrElse(100)
-
-    // Store words in lowercase for case-insensitive counting
     val wordCounts = Map.empty[String, Int] 
     val recentWords = Queue.empty[String]
 
