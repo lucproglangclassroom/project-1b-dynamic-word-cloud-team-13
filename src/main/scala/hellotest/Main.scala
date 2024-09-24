@@ -16,9 +16,8 @@ object Main {
     }
 
     for (line <- scala.io.Source.stdin.getLines()) {
-      line.split("\\s+").filter(_.nonEmpty).foreach { word =>
+      line.split("\\s+").filter(_ != null).filter(_.nonEmpty).foreach { word =>
         if (word.length >= minLength) {
-          // Convert word to lowercase before storing/counting
           val lowerCaseWord = word.toLowerCase
           wordCounts.update(lowerCaseWord, wordCounts.getOrElse(lowerCaseWord, 0) + 1)
           recentWords.enqueue(lowerCaseWord)
