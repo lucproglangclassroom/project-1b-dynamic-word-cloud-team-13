@@ -1,6 +1,7 @@
 package hellotest
 
 import scala.collection.mutable.{Map, Queue}
+import scala.language.unsafeNulls
 
 object Main {
   def main(args: Array[String]): Unit = {
@@ -27,6 +28,11 @@ object Main {
           }
         }
       }
+      //to handle SIGPIPE
+      if (System.out.checkError()) {
+        System.exit(1)
+      }
+
       updateWordCloud()
     }
   }
