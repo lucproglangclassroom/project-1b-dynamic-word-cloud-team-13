@@ -1,59 +1,130 @@
 package hellotest
 
 import scala.io.StdIn
-import scala.collection.mutable
 import java.io.PrintStream
-import scala.language.unsafeNulls
+import scala.annotation.tailrec
+import scala.language.unsafeNulls 
 
 case class Config(cloudSize: Int = 10, minLength: Int = 6, windowSize: Int = 1000)
 
 object TopWords {
 
   def parseArgs(args: Array[String]): Config = {
-    args.sliding(2, 2).foldLeft(Config()) { (config, argPair) =>
-      argPair match {
-        case Array("-c", size)    => config.copy(cloudSize = size.toInt)
-        case Array("-l", length)  => config.copy(minLength = length.toInt)
-        case Array("-w", size)    => config.copy(windowSize = size.toInt)
-        case _                    => config
+    @tailrec
+    def helper(
+        argsList: List[String],
+        config: Config
+    ): Config = argsList match {
+      case "-c" :: size :: tail =>
+        helper(tail, config.copy(cloudSize = size.toInt))
+      case "-l" :: length :: tail =>
+        helper(tail, config.copy(minLength = length.toInt))
+      case "-w" :: size :: tail =>
+        helper(tail, config.copy(windowSize = size.toInt))
+      case Nil => config
+      case _ =>
+        System.err.nn.println("Invalid arguments")
+        System.exit(1)
+        config 
+    }
+
+    helper(args.toList, Config())
+  }
+
+  case class State(
+      window: List[String],
+      wordCounts: Map[String, Int]
+  )
+
+  object State {
+    val empty: State = State(Nil, Map.empty)
+  }
+
+  def normalizeWord(word: String): String = {
+    word
+      .toLowerCase 
+      .replaceAll("""[\p{Punct}]""", "") 
+      .trim // Remove leading and trailing whitespace
+  }
+
+  def updateState(
+      state: State,
+      newWords: Seq[String],
+      config: Config
+  ): State = {
+    val normalizedNewWords = newWords.map(normalizeWord).filter(_.nonEmpty)
+
+    val updatedWindow = state.window ++ normalizedNewWords
+
+    val updatedWordCounts = normalizedNewWords.foldLeft(state.wordCounts) { (counts, word) =>
+      counts.updated(word, counts.getOrElse(word, 0) + 1)
+    }
+
+    if (config.windowSize > 0 && updatedWindow.size > config.windowSize) {
+      val excess = updatedWindow.size - config.windowSize
+      val (toRemove, remainingWindow) = updatedWindow.splitAt(excess)
+
+      val finalWordCounts = toRemove.foldLeft(updatedWordCounts) { (counts, word) =>
+        counts.get(word) match {
+          case Some(1) => counts - word
+          case Some(n) => counts.updated(word, n - 1)
+          case None    => counts
+        }
       }
+
+      State(remainingWindow, finalWordCounts)
+    } else {
+      State(updatedWindow, updatedWordCounts)
     }
   }
 
   def getTopWords(
-      words: mutable.Queue[String],
-      wordCounts: mutable.Map[String, Int],
-      newWords: Seq[String],
-      cloudSize: Int,
-      windowSize: Int
+      wordCounts: Map[String, Int],
+      cloudSize: Int
   ): Seq[(String, Int)] = {
-    newWords.foreach { word =>
-      words.enqueue(word)
-      wordCounts.updateWith(word) {
-        case Some(count) => Some(count + 1)
-        case None        => Some(1)
-      }
-    }
-
-    if (windowSize > 0) {
-      while (words.length > windowSize) {
-        val removedWord = words.dequeue()
-        wordCounts.updateWith(removedWord) {
-          case Some(count) if count > 1 => Some(count - 1)
-          case _                        => None
-        }
-        ()
-      }
-    }
-
-    wordCounts.toSeq.sortBy(-_._2).take(cloudSize)
+    wordCounts.toSeq
+      .sortBy { case (word, count) => (-count, word) } 
+      .take(cloudSize)
   }
 
-  def printWordCloud(wordCounts: mutable.Map[String, Int], cloudSize: Int, out: PrintStream = System.out): Unit = {
-    val topWords = wordCounts.toSeq.sortBy(-_._2).take(cloudSize)
-    out.println(topWords.map { case (word, count) => s"$word: $count" }.mkString(" "))
+  def formatWordCloud(topWords: Seq[(String, Int)]): String = {
+    topWords.map { case (word, count) => s"$word: $count" }.mkString(" ")
+  }
 
-    // Handle SIGPIPE
+  def processLines(
+      lines: Iterator[String],
+      config: Config
+  ): Iterator[String] = {
+    def helper(
+        remaining: Iterator[String],
+        state: State
+    ): Iterator[String] = {
+      if (!remaining.hasNext) Iterator.empty
+      else {
+        val line = remaining.next()
+        val rawWords = line.split("\\s+").nn
+
+        val validWords = rawWords
+          .map(normalizeWord)
+          .filter(word => word.length >= config.minLength)
+          .toSeq
+
+        val newState = updateState(state, validWords, config)
+
+        val topWords = getTopWords(newState.wordCounts, config.cloudSize)
+
+        Iterator(formatWordCloud(topWords)) ++ helper(remaining, newState)
+      }
+    }
+
+    helper(lines, State.empty)
+  }
+
+  def printWordCloud(
+      wordCloud: String,
+      out: PrintStream = System.out.nn 
+  ): Unit = {
+    out.println(wordCloud)
     if (out.checkError()) {
       System.exit(1)
     }
@@ -64,21 +135,16 @@ object TopWords {
       output: PrintStream,
       config: Config
   ): Unit = {
-    val words = mutable.Queue[String]()
-    val wordCounts = mutable.Map[String, Int]()
-
-    input.foreach { line =>
-      val validWords = line.split("\\s+").filter(_.length >= config.minLength).toSeq
-
-      getTopWords(words, wordCounts, validWords, config.cloudSize, config.windowSize)
-      printWordCloud(wordCounts, config.cloudSize, output)
+    val wordClouds = processLines(input, config)
+    wordClouds.foreach { cloud =>
+      printWordCloud(cloud, output)
     }
   }
 
   def main(args: Array[String]): Unit = {
     val config = parseArgs(args)
     val input = io.Source.stdin.getLines()
-    val output = System.out
+    val output = System.out.nn // Assert non-null
     run(input, output, config)
   }
 }
