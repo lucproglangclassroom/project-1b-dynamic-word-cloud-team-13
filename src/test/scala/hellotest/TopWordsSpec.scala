@@ -3,19 +3,19 @@ package hellotest
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.BeforeAndAfterEach
-import scala.collection.mutable
+import scala.collection.immutable.{Queue, Map}
 import java.io.ByteArrayOutputStream
 import java.io.PrintStream
 import scala.language.unsafeNulls
 
 class TopWordsSpec extends AnyFunSuite with Matchers with BeforeAndAfterEach {
 
-  var wordsQueue: mutable.Queue[String] = _
-  var wordCounts: mutable.Map[String, Int] = _
+  var wordsQueue: Queue[String] = _
+  var wordCounts: Map[String, Int] = _
 
   override def beforeEach(): Unit = {
-    wordsQueue = mutable.Queue[String]()
-    wordCounts = mutable.Map[String, Int]()
+    wordsQueue = Queue[String]()
+    wordCounts = Map[String, Int]()
   }
 
   test("parseArgs should correctly parse all arguments") {
@@ -36,13 +36,13 @@ class TopWordsSpec extends AnyFunSuite with Matchers with BeforeAndAfterEach {
 
   test("getTopWords should correctly count and retrieve top words") {
     val newWords1 = Seq("hello", "world", "hello", "scala", "testing")
-    val topWords1 = TopWords.getTopWords(wordsQueue, wordCounts, newWords1, cloudSize = 3, windowSize = 10)
+    val topWords1 = TopWords.getTopWords(wordCounts, cloudSize = 3)
 
     topWords1 should contain allOf ("hello" -> 2, "world" -> 1, "scala" -> 1)
     topWords1.length shouldBe 3
 
     val newWords2 = Seq("hello", "world", "scala", "java")
-    val topWords2 = TopWords.getTopWords(wordsQueue, wordCounts, newWords2, cloudSize = 3, windowSize = 10)
+    val topWords2 = TopWords.getTopWords(wordCounts, cloudSize = 3)
 
     topWords2 should contain allOf ("hello" -> 3, "world" -> 2, "scala" -> 2)
     topWords2.length shouldBe 3
@@ -50,13 +50,13 @@ class TopWordsSpec extends AnyFunSuite with Matchers with BeforeAndAfterEach {
 
   test("getTopWords should maintain the sliding window correctly") {
     val newWords1 = Seq("apple", "banana", "apple", "cherry", "banana")
-    TopWords.getTopWords(wordsQueue, wordCounts, newWords1, cloudSize = 2, windowSize = 5)
+    TopWords.getTopWords(wordCounts, cloudSize = 2)
 
     wordsQueue.size shouldBe 5
     wordCounts should contain allOf ("apple" -> 2, "banana" -> 2, "cherry" -> 1)
 
     val newWords2 = Seq("date", "apple", "banana")
-    val topWords = TopWords.getTopWords(wordsQueue, wordCounts, newWords2, cloudSize = 2, windowSize = 5)
+    val topWords = TopWords.getTopWords(wordCounts, cloudSize = 2)
 
     wordsQueue.size shouldBe 5
     wordCounts should contain allOf ("banana" -> 2, "cherry" -> 1, "date" -> 1, "apple" -> 1)
