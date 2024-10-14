@@ -35,35 +35,42 @@ class TopWordsSpec extends AnyFunSuite with Matchers with BeforeAndAfterEach {
   }
 
   test("getTopWords should correctly count and retrieve top words") {
+    val config = Config(cloudSize = 3, minLength = 1, windowSize = 1000, ignoreCase = true)
     val newWords1 = Seq("hello", "world", "hello", "scala", "testing")
-    val topWords1 = TopWords.getTopWords(wordCounts, cloudSize = 3)
+    val updatedState1 = TopWords.updateState(State.empty, newWords1, config)
+    val topWords1 = TopWords.getTopWords(updatedState1.wordCounts, config.cloudSize)
 
-    topWords1 should contain allOf ("hello" -> 2, "world" -> 1, "scala" -> 1)
+    topWords1 should contain allOf ("hello" -> 2, "scala" -> 1, "testing" -> 1)
     topWords1.length shouldBe 3
 
     val newWords2 = Seq("hello", "world", "scala", "java")
-    val topWords2 = TopWords.getTopWords(wordCounts, cloudSize = 3)
-
+    val updatedState2 = TopWords.updateState(updatedState1, newWords2, config)
+    val topWords2 = TopWords.getTopWords(updatedState2.wordCounts, config.cloudSize)
+  
     topWords2 should contain allOf ("hello" -> 3, "world" -> 2, "scala" -> 2)
     topWords2.length shouldBe 3
   }
 
   test("getTopWords should maintain the sliding window correctly") {
-    val newWords1 = Seq("apple", "banana", "apple", "cherry", "banana")
-    TopWords.getTopWords(wordCounts, cloudSize = 2)
+  val config = Config(cloudSize = 2, minLength = 1, windowSize = 5, ignoreCase = true)
+  val newWords1 = Seq("apple", "banana", "apple", "cherry", "banana")
+  val updatedState1 = TopWords.updateState(State.empty, newWords1, config)
 
-    wordsQueue.size shouldBe 5
-    wordCounts should contain allOf ("apple" -> 2, "banana" -> 2, "cherry" -> 1)
+  updatedState1.window.size shouldBe 5
+  updatedState1.wordCounts should contain allOf ("apple" -> 2, "banana" -> 2, "cherry" -> 1)
 
-    val newWords2 = Seq("date", "apple", "banana")
-    val topWords = TopWords.getTopWords(wordCounts, cloudSize = 2)
+  val newWords2 = Seq("date", "apple", "banana")
+  val updatedState2 = TopWords.updateState(updatedState1, newWords2, config)
 
-    wordsQueue.size shouldBe 5
-    wordCounts should contain allOf ("banana" -> 2, "cherry" -> 1, "date" -> 1, "apple" -> 1)
+  updatedState2.window.size shouldBe 5
+  updatedState2.wordCounts should contain allOf ("banana" -> 2, "cherry" -> 1, "date" -> 1, "apple" -> 1)
 
-    topWords.head shouldEqual ("banana" -> 2)
-    topWords(1) should (equal ("cherry" -> 1) or equal ("date" -> 1) or equal ("apple" -> 1))
-  }
+  val topWords = TopWords.getTopWords(updatedState2.wordCounts, config.cloudSize)
+  
+  topWords.head shouldEqual ("banana" -> 2)
+  topWords(1) should (equal ("cherry" -> 1) or equal ("date" -> 1) or equal ("apple" -> 1))
+}
+
 
   test("run should exit gracefully on empty input") {
     val inputLines = Seq.empty[String].iterator
