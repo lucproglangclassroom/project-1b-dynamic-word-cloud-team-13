@@ -1,0 +1,1 @@
+# Test Screenshots included in this folder
